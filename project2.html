@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+            <title>Project 2</title>
+
+			<script id="vertex-shader" type="x-shader/x-vertex">
+			uniform float alpha, beta, gamma;
+				uniform float tx, ty;
+				uniform float sx, sy;
+				mat4 Mx, My, Mz;
+				mat4 Mtx, Mty;
+				mat4 Msx, Msy;
+
+				attribute vec4 vertexColor;
+				attribute vec4 vertexPosition;
+				attribute vec2 textureCoordinate;
+				varying vec2 fTextureCoordinate;
+
+				void main() {
+					fTextureCoordinate = textureCoordinate;
+
+					Mx = mat4(1, 0, 0, 0, 
+							  0, cos(alpha), -sin(alpha), 0,
+							  0, sin(alpha), cos(alpha), 0,
+							  0, 0, 0, 1);
+					My = mat4(cos(beta), 0, -sin(beta), 0,
+							  0, 1, 0, 0,
+							  sin(beta), 0, cos(beta), 0,
+							  0, 0, 0, 1);
+					Mz = mat4(cos(gamma), -sin(gamma), 0, 0,
+							  sin(gamma), cos(gamma), 0, 0,
+							  0, 0, 1, 0,
+							  0, 0, 0, 1);
+
+					Mtx = mat4(1, 0, 0, 0,
+							   0, 1, 0, 0,
+							   0, 0, 1, 0,
+							   tx, 0, 0, 1);
+					Mty = mat4(1, 0, 0, 0,
+							   0, 1, 0, 0,
+							   0, 0, 1, 0,
+							   0, ty, 0, 1);
+
+					Msx = mat4(sx, 0, 0, 0,
+							   0, 1, 0, 0,
+							   0, 0, 1, 0,
+							   0, 0, 0, 1);
+					Msy = mat4(1, 0, 0, 0,
+							   0, sy, 0, 0,
+							   0, 0, 1, 0,
+							   0, 0, 0, 1);
+
+					gl_Position = (Mty * Mtx) * (Mz * My * Mx) * (Msy * Msx) * vertexPosition;
+					fTextureCoordinate = textureCoordinate;
+				}
+
+			</script>
+
+			<script id="fragment-shader" type="x-shader/x-fragment">
+				precision mediump float;
+				varying vec2 fTextureCoordinate;
+				uniform sampler2D texMap0;
+
+				void main() {
+					vec4 color0 = texture2D(texMap0, fTextureCoordinate);
+					gl_FragColor.r = color0.r;
+					gl_FragColor.g = color0.g;
+					gl_FragColor.b = color0.b;
+					gl_FragColor.a = 1.0;
+				}
+
+			</script>
+
+			<script type="text/javascript" src="Common/webgl-utils.js"></script>
+			<script type="text/javascript" src="Common/initShaders.js"></script>
+			<script type="text/javascript" src="Common/MV.js"></script>
+			<script type="text/javascript" src="project2.js"></script>
+	</head>
+
+	<body onload = "initGL()" onkeydown="transformShape(event)">
+    	<canvas id="gl-canvas" width="512" height="512"></canvas><br/>
+    	<img id="wood" hidden src="wood.jpg"/>
+		<div id="overlay">
+        	<div>
+        <p class="controls">Rotate the tetrahedron about the x-, y-, and z-axis using Z, X, and C.</p>
+        <p class="controls">Translate the tetrahedron along the x- and y-axis using WASD.</p>
+        <p class="controls">Scale the tetrahedron along the x- and y-axis using the arrow keys.</p>
+    </body>
+</html>
