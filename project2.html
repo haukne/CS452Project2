@@ -5,21 +5,37 @@
             <title>Project 2</title>
 
 			<script id="vertex-shader" type="x-shader/x-vertex">
-			uniform float alpha, beta, gamma;
+				precision mediump float;
+				
+				uniform float alpha, beta, gamma;
 				uniform float tx, ty;
 				uniform float sx, sy;
+				
+				uniform mat4 M, M_inversetranspose, P_orth, P_persp;
+
 				mat4 Mx, My, Mz;
 				mat4 Mtx, Mty;
 				mat4 Msx, Msy;
 
+				//light 0
+				uniform vec3 p0;
+				uniform vec3 Ia0, Id0, Is0;
+				//light 1
+				uniform vec3 p1;
+				uniform vec3 Ia1, Id1, Is1;
+		
+				varying vec3 R;
+
+
 				attribute vec4 vertexColor;
 				attribute vec4 vertexPosition;
+				attribute vec3 nv;
 				attribute vec2 textureCoordinate;
 				varying vec2 fTextureCoordinate;
 
 				void main() {
+					gl_PointSize = 1.0;
 					fTextureCoordinate = textureCoordinate;
-
 					Mx = mat4(1, 0, 0, 0, 
 							  0, cos(alpha), -sin(alpha), 0,
 							  0, sin(alpha), cos(alpha), 0,
@@ -32,7 +48,6 @@
 							  sin(gamma), cos(gamma), 0, 0,
 							  0, 0, 1, 0,
 							  0, 0, 0, 1);
-
 					Mtx = mat4(1, 0, 0, 0,
 							   0, 1, 0, 0,
 							   0, 0, 1, 0,
@@ -41,7 +56,6 @@
 							   0, 1, 0, 0,
 							   0, 0, 1, 0,
 							   0, ty, 0, 1);
-
 					Msx = mat4(sx, 0, 0, 0,
 							   0, 1, 0, 0,
 							   0, 0, 1, 0,
@@ -50,18 +64,21 @@
 							   0, sy, 0, 0,
 							   0, 0, 1, 0,
 							   0, 0, 0, 1);
+					
+					vec4 vertexPositionTransformed = (Mty * Mtx) * (Mz * My * Mx) * (Msy * Msx) * vertexPosition;
+					vec4 nv4 = vec4( nv.x, nv.y, nv.z, 1.0);
+					vec4 nv4transformed = M_inversetranspose * nv4;
+					vec3 nvtransformed = normalize(nv4transformed.xyz);
 
-					gl_Position = (Mty * Mtx) * (Mz * My * Mx) * (Msy * Msx) * vertexPosition;
+					gl_Position = P_persp * vertexPositionTransformed;
 					fTextureCoordinate = textureCoordinate;
 				}
-
 			</script>
 
 			<script id="fragment-shader" type="x-shader/x-fragment">
 				precision mediump float;
 				varying vec2 fTextureCoordinate;
 				uniform sampler2D texMap0;
-
 				void main() {
 					vec4 color0 = texture2D(texMap0, fTextureCoordinate);
 					gl_FragColor.r = color0.r;
@@ -69,13 +86,14 @@
 					gl_FragColor.b = color0.b;
 					gl_FragColor.a = 1.0;
 				}
-
 			</script>
 
 			<script type="text/javascript" src="Common/webgl-utils.js"></script>
 			<script type="text/javascript" src="Common/initShaders.js"></script>
 			<script type="text/javascript" src="Common/MV.js"></script>
 			<script type="text/javascript" src="project2.js"></script>
+			<script type="text/javascript" src="object.js"></script>
+
 	</head>
 
 	<body onload = "initGL()" onkeydown="transformShape(event)">

@@ -12,19 +12,29 @@ var sxLoc, syLoc;
 var iBuffer;
 var textureImage;
 
+// table top
+var numVerticesPrism;
+var numTrianglesPrism;
+
+var eye, at, vup;
+var n, u, v;
+var left, right, top, bottom, near, far;
 
 function initGL(){
-    var canvas = document.getElementById( "gl-canvas" );
-    gl = WebGLUtils.setupWebGL( canvas );
+  var canvas = document.getElementById( "gl-canvas" );
+  gl = WebGLUtils.setupWebGL( canvas );
     
-    if ( !gl ) { alert( "WebGL isn't available" ); }
+  if ( !gl ) { alert( "WebGL isn't available" ); }
 
-    gl.viewport( 0, 0, 512, 512);
-    gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+  gl.enable( gl.DEPTH_TEST );
+  gl.viewport( 0, 0, 512, 512);
+  gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     
   myShaderProgram = initShaders( gl, "vertex-shader", "fragment-shader" );
-    gl.useProgram( myShaderProgram );
-  gl.enable( gl.DEPTH_TEST );
+  gl.useProgram( myShaderProgram );
+
+  numVerticesPrism = 24;
+  numTrianglesPrism = 12;
 
     alpha = 0.0;
     beta = 0.0;
@@ -38,91 +48,139 @@ function initGL(){
   syLoc = gl.getUniformLocation(myShaderProgram, "sy");
   gl.uniform1f(syLoc, sy);
 
+  eye = vec3(60.0, 80.0, 100.0);
+    // Define at point (use vec3 in MV.js)
+  at = vec3(0.0, 0.0, 0.0);
+    // Define vup vector (use vec3 in MV.js)
+  vup = vec3(0.0, 1.0, 0.0); 
+    var d = subtract(eye, at);
+  n = normalize(d);
+    var k = cross(vup, n);
+  u = normalize(k);
+    var l = cross(n, u);
+  v = normalize(l);
+    // Set up Model-View matrix M and send M as uniform to shader
+    var modelviewMatrix = [u[0], v[0], n[0], 0.0,
+                 u[1], v[1], n[1], 0.0,
+                 u[2], v[2], n[2], 0.0,
+                -u[0]*eye[0]-u[1]*eye[1]-u[2]*eye[2], 
+                -v[0]*eye[0]-v[1]*eye[1]-v[2]*eye[2], 
+                -n[0]*eye[0]-n[1]*eye[1]-n[2]*eye[2], 1.0];  
+
+    var modelviewMatrixInverseTranspose = [u[0], v[0], n[0], eye[0],
+                         u[1], v[1], n[1], eye[1],
+                         u[2], v[2], n[2], eye[2],
+                         0.0, 0.0, 0.0, 1.0];
+    
+    var MLocation = gl.getUniformLocation(myShaderProgram, "modelView");
+    gl.uniformMatrix4fv(MLocation, false, modelviewMatrix);
+    var MinvtransLocation = gl.getUniformLocation(myShaderProgram, "M_invtranspose");
+    gl.uniformMatrix4fv(MinvtransLocation, false, modelviewMatrixInverseTranspose);
+
+    // Define left plane
+    left = -50.0;
+    // Define right plane
+    right = 50.0;
+    // Define top plane
+    top = 50.0;
+    // Define bottom plane
+    bottom = -50.0;
+    // Define near plane
+    near = 50.0;
+    // Define far plane
+    far = 180.0;
+    // Set up perspective projection matrix P_persp using above planes
+    var P_persp = [(2.0*near)/(right-left), 0.0, 0.0, 0.0,
+                       0.0, (2.0*near)/(top-bottom), 0.0, 0.0,
+                       (right+left)/(right-left), (top+bottom)/(top-bottom), -(far+near)/(far-near), -1,
+                       0.0, 0.0, -(2.0*far*near)/(far-near), 0.0];
+    var perspMatrixLocation = gl.getUniformLocation(myShaderProgram, "perspProj");
+    gl.uniformMatrix4fv(perspMatrixLocation, false, P_persp);
+
     setupPrism();
     render();
 }
 
+function getFaceNormals( vertices, indexList, numTriangles ) {
+    // array of face normals
+    var faceNormals = [];
+    // faceNormal = [];
+    
+    // Following lines iterate over triangles
+    for (var i = 0; i < numTriangles; i++) {
+        // Following lines give you three vertices for each face of the triangle
+        var p0 = vec3( vertices[indexList[3*i]][0],
+                      vertices[indexList[3*i]][1],
+                      vertices[indexList[3*i]][2]);
+        
+        var p1 = vec3( vertices[indexList[3*i+1]][0],
+                      vertices[indexList[3*i+1]][1],
+                      vertices[indexList[3*i+1]][2]);
+        
+        var p2 = vec3( vertices[indexList[3*i+2]][0],
+                      vertices[indexList[3*i+2]][1],
+                      vertices[indexList[3*i+2]][2]);
+        
+        // Calculate vector from p0 to p1 ( use subtract function in MV.js, NEEDS CODE )
+        var p1Minusp0 = vec3(p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]);
+        // Calculate vector from p0 to p2 ( use subtract function, NEEDS CODE )
+        var p2Minusp0 = vec3(p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]);
+        // Calculate face normal as the cross product of the above two vectors
+        // (use cross function in MV.js, NEEDS CODE )
+        var faceNormal = cross(p1Minusp0, p2Minusp0);
+        faceNormal = normalize(faceNormal);
+        faceNormals.push( faceNormal );
+    }
+    // Following line returns the array of face normals
+    return faceNormals;
+}
+
+function getVertexNormals( vertices, indexList, faceNormals, numVertices, numTriangles ) {
+    var vertexNormals = [];
+    
+    // Iterate over all vertices
+    for ( var j = 0; j < numVertices; j++) {
+        
+        // Initialize the vertex normal for the j-th vertex
+        var vertexNormal = vec3( 0.0, 0.0, 0.0 );
+        
+        // Iterate over all the faces to find if this vertex belongs to
+        // a particular face
+        for ( var i = 0; i < numTriangles; i++ ) {
+            
+            // The condition of the following if statement should check
+            // if the j-th vertex belongs to the i-th face
+            if (indexList[3*i] == j | indexList[3*i+1] == j | indexList[3*i+2] == j) {
+                vertexNormal[0] = vertexNormal[0] + faceNormals[i][0];
+                vertexNormal[1] = vertexNormal[1] + faceNormals[i][1];
+                vertexNormal[2] = vertexNormal[2] + faceNormals[i][2];
+            }   
+        } 
+        // Normalize the vertex normal here (NEEDS CODE)
+        vertexNormal = normalize(vertexNormal);
+        // Following line pushes the vertex normal into the vertexNormals array
+        vertexNormals.push( vertexNormal );
+    }
+    return vertexNormals;
+}
+
 function setupPrism() {
-  var prismVertices = [//front
-                       -0.7, -0.5, 0.1,
-                       0.7, -0.5, 0.1,
-                       0.7, 0.5, 0.1,
-                       -0.7, 0.5, 0.1,
-                       //back
-                       -0.7, -0.5, 0.0,
-                       -0.7, 0.5, 0.0,
-                       0.7, 0.5, 0.0,
-                       0.7, -0.5, 0.0,
-                       //top
-                       -0.7, 0.5, 0.0,
-                       -0.7, 0.5, 0.1,
-                       0.7, 0.5, 0.1,
-                       0.7, 0.5, 0.0,
-                       //bottom
-                       -0.7, -0.5, 0.0,
-                       0.7, -0.5, 0.0,
-                       0.7, -0.5, 0.1,
-                       -0.7, -0.5, 0.1,
-                      //right
-                      0.7, -0.5, 0.0,
-                      0.7, 0.5, 0.0,
-                      0.7, 0.5, 0.1,
-                      0.7, -0.5, 0.1,
-                      //left
-                      -0.7, -0.5, 0.0,
-                      -0.7, -0.5, 0.1,
-                      -0.7, 0.5, 0.1,
-                      -0.7, 0.5, 0.0];
+  var prismVertices = getPrismVertices();
 
-    var prismIndexList = [//front
-                          0, 1, 2,
-                          0, 2, 3,
-                          //back
-                          4, 5, 6,
-                          4, 6, 7,
-                          //top 
-                          8, 9, 10, 
-                          8, 10, 11,
-                          //bottom 
-                          12, 13, 14, 
-                          12, 14, 15,
-                          //right 
-                          16, 17, 18, 
-                          16, 18, 19,
-                          //left 
-                          20, 21, 22, 
-                          20, 22, 23];
+    var prismIndexList = getPrismFaces();
 
-    var textureCoordinates = [//front
-                              0.0, 0.0,
-                              1.0, 0.0,
-                              1.0, 1.0,
-                              0.0, 1.0,
-                              //back
-                              0.0, 0.0,
-                              1.0, 0.0,
-                              1.0, 1.0,
-                              0.0, 1.0,
-                              //top
-                              0.0, 0.0,
-                              1.0, 0.0,
-                              1.0, 1.0,
-                              0.0, 1.0,
-                              //bottom
-                              0.0, 0.0,
-                              1.0, 0.0,
-                              1.0, 1.0,
-                              0.0, 1.0,
-                              //right
-                              0.0, 0.0,
-                              1.0, 0.0,
-                              1.0, 1.0,
-                              0.0, 1.0,
-                              //left
-                              0.0, 0.0,
-                              1.0, 0.0,
-                              1.0, 1.0,
-                              0.0, 1.0];
+    var textureCoordinates = getPrismTexture();
+
+    var faceNormals = getFaceNormals( prismVertices, prismIndexList, numTrianglesPrism );
+    var vertexNormals = getVertexNormals( prismVertices, prismIndexList, faceNormals, numVerticesPrism, numTrianglesPrism );
+
+    var normalsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(vertexNormals), gl.STATIC_DRAW);
+    
+    var vertexNormal = gl.getAttribLocation(myShaderProgram,"nv");
+    gl.vertexAttribPointer( vertexNormal, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vertexNormal );
 
     var myImage = document.getElementById("wood");
 
